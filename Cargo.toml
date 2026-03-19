@@ -1,0 +1,8 @@
+[package]
+name = "umlautkey"
+description = "The lightweight, open-source utility for typing German Umlauts (ä, ö, ü, ß) effortlessly on standard US/International keyboards."
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rdev = "0.5.3"
