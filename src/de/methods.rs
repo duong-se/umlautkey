@@ -18,7 +18,21 @@ impl<'def> IncrementalBuffer<'def> {
     pub fn push(&mut self, ch: char) {
         let lowercase_ch = ch.to_ascii_lowercase();
 
-        // Check if the recently pressed key is in the "function key" list
+        if lowercase_ch == 'e' && (self.output.ends_with('ä') || self.output.ends_with('Ä')) {
+            let is_upper = self.output.ends_with('Ä');
+            self.output.pop();
+            self.output.push(if is_upper { 'A' } else { 'a' });
+            self.output.push(if ch.is_uppercase() { 'E' } else { 'e' });
+            return;
+        }
+
+        if lowercase_ch == 's' && self.output.ends_with('ß') {
+            self.output.pop();
+            self.output.push('s');
+            self.output.push('s');
+            return;
+        }
+
         if let Some(action) = self.definition.get(&lowercase_ch) {
             match action {
                 Action::ModifyToUmlaut => {
@@ -213,5 +227,28 @@ mod tests {
         buffer.push('s');
         buffer.push('S');
         assert_eq!(buffer.view(), "ß");
+    }
+
+    #[test]
+    fn test_umlaut_not_transform_when_previous_character_is_double_e() {
+        let rules = get_default_rules();
+        let mut buffer = IncrementalBuffer::new(&rules);
+
+        buffer.push('a');
+        buffer.push('e');
+        buffer.push('e');
+        assert_eq!(buffer.view(), "ae");
+
+    }
+
+    #[test]
+    fn test_umlaut_not_transform_when_previous_character_is_tripple_s() {
+        let rules = get_default_rules();
+        let mut buffer = IncrementalBuffer::new(&rules);
+
+        buffer.push('s');
+        buffer.push('s');
+        buffer.push('s');
+        assert_eq!(buffer.view(), "ss");
     }
 }
