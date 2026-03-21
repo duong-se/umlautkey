@@ -238,7 +238,17 @@ mod tests {
         buffer.push('e');
         buffer.push('e');
         assert_eq!(buffer.view(), "ae");
+    }
+    #[test]
+    fn test_umlaut_not_transform_when_previous_character_is_triple_e() {
+        let rules = get_default_rules();
+        let mut buffer = IncrementalBuffer::new(&rules);
 
+        buffer.push('a');
+        buffer.push('e');
+        buffer.push('e');
+        buffer.push('e');
+        assert_eq!(buffer.view(), "aee");
     }
 
     #[test]
@@ -250,5 +260,28 @@ mod tests {
         buffer.push('s');
         buffer.push('s');
         assert_eq!(buffer.view(), "ss");
+    }
+    #[test]
+    fn test_umlaut_transform_when_previous_character_is_fourth_s() {
+        let rules = get_default_rules();
+        let mut buffer = IncrementalBuffer::new(&rules);
+
+        buffer.push('s');
+        buffer.push('s');
+        buffer.push('s');
+        buffer.push('s');
+        assert_eq!(buffer.view(), "sß");
+    }
+    #[test]
+    fn test_umlaut_not_transform_when_previous_character_is_five_s() {
+        let rules = get_default_rules();
+        let mut buffer = IncrementalBuffer::new(&rules);
+
+        buffer.push('s');
+        buffer.push('s');
+        buffer.push('s');
+        buffer.push('s');
+        buffer.push('s');
+        assert_eq!(buffer.view(), "sss");
     }
 }
