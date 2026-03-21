@@ -26,6 +26,22 @@ impl<'def> IncrementalBuffer<'def> {
             return;
         }
 
+        if lowercase_ch == 'e' && (self.output.ends_with('ü') || self.output.ends_with('Ü')) {
+            let is_upper = self.output.ends_with('Ü');
+            self.output.pop();
+            self.output.push(if is_upper { 'U' } else { 'u' });
+            self.output.push(if ch.is_uppercase() { 'E' } else { 'e' });
+            return;
+        }
+
+        if lowercase_ch == 'e' && (self.output.ends_with('ö') || self.output.ends_with('Ö')) {
+            let is_upper = self.output.ends_with('Ö');
+            self.output.pop();
+            self.output.push(if is_upper { 'O' } else { 'o' });
+            self.output.push(if ch.is_uppercase() { 'E' } else { 'e' });
+            return;
+        }
+
         if lowercase_ch == 's' && self.output.ends_with('ß') {
             self.output.pop();
             self.output.push('s');
@@ -193,6 +209,69 @@ mod tests {
         buffer.push('U');
         buffer.push('e');
         assert_eq!(buffer.view(), "Ü");
+        buffer.clear();
+    }
+
+    #[test]
+    fn test_umlaut_transformation_with_previous_character_a_umlaut() {
+        let rules = get_default_rules();
+        let mut buffer = IncrementalBuffer::new(&rules);
+
+        buffer.push('ä');
+        buffer.push('e');
+        assert_eq!(buffer.view(), "ae");
+        buffer.clear();
+
+        buffer.push('Ä');
+        buffer.push('e');
+        assert_eq!(buffer.view(), "Ae");
+        buffer.clear();
+
+        buffer.push('Ä');
+        buffer.push('E');
+        assert_eq!(buffer.view(), "AE");
+        buffer.clear();
+    }
+
+    #[test]
+    fn test_umlaut_transformation_with_previous_character_u_umlaut() {
+        let rules = get_default_rules();
+        let mut buffer = IncrementalBuffer::new(&rules);
+
+        buffer.push('ü');
+        buffer.push('e');
+        assert_eq!(buffer.view(), "ue");
+        buffer.clear();
+
+        buffer.push('Ü');
+        buffer.push('e');
+        assert_eq!(buffer.view(), "Ue");
+        buffer.clear();
+
+        buffer.push('Ü');
+        buffer.push('E');
+        assert_eq!(buffer.view(), "UE");
+        buffer.clear();
+    }
+
+    #[test]
+    fn test_umlaut_transformation_with_previous_character_o_umlaut() {
+        let rules = get_default_rules();
+        let mut buffer = IncrementalBuffer::new(&rules);
+
+        buffer.push('ö');
+        buffer.push('e');
+        assert_eq!(buffer.view(), "oe");
+        buffer.clear();
+
+        buffer.push('Ö');
+        buffer.push('e');
+        assert_eq!(buffer.view(), "Oe");
+        buffer.clear();
+
+        buffer.push('Ö');
+        buffer.push('E');
+        assert_eq!(buffer.view(), "OE");
         buffer.clear();
     }
 
