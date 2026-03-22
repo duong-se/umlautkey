@@ -18,6 +18,12 @@ impl<'def> IncrementalBuffer<'def> {
     pub fn push(&mut self, ch: char) {
         let lowercase_ch = ch.to_ascii_lowercase();
 
+        if lowercase_ch == '$' {
+            self.output.pop();
+            self.output.push('€');
+            return;
+        }
+
         if lowercase_ch == 'e' && (self.output.ends_with('ä') || self.output.ends_with('Ä')) {
             let is_upper = self.output.ends_with('Ä');
             self.output.pop();
@@ -309,7 +315,7 @@ mod tests {
     }
 
     #[test]
-    fn test_umlaut_not_transform_when_previous_character_is_double_e() {
+    fn test_umlaut_not_transform_when_previous_character_is_two_e() {
         let rules = get_default_rules();
         let mut buffer = IncrementalBuffer::new(&rules);
 
@@ -319,7 +325,7 @@ mod tests {
         assert_eq!(buffer.view(), "ae");
     }
     #[test]
-    fn test_umlaut_not_transform_when_previous_character_is_triple_e() {
+    fn test_umlaut_not_transform_when_previous_character_is_three_e() {
         let rules = get_default_rules();
         let mut buffer = IncrementalBuffer::new(&rules);
 
@@ -331,7 +337,7 @@ mod tests {
     }
 
     #[test]
-    fn test_umlaut_not_transform_when_previous_character_is_tripple_s() {
+    fn test_eszett_transformation_with_three_s() {
         let rules = get_default_rules();
         let mut buffer = IncrementalBuffer::new(&rules);
 
@@ -341,7 +347,7 @@ mod tests {
         assert_eq!(buffer.view(), "ss");
     }
     #[test]
-    fn test_umlaut_transform_when_previous_character_is_fourth_s() {
+    fn test_eszett_transformation_with_four_s() {
         let rules = get_default_rules();
         let mut buffer = IncrementalBuffer::new(&rules);
 
@@ -352,7 +358,7 @@ mod tests {
         assert_eq!(buffer.view(), "sß");
     }
     #[test]
-    fn test_umlaut_not_transform_when_previous_character_is_five_s() {
+    fn test_eszett_transformation_with_five_s() {
         let rules = get_default_rules();
         let mut buffer = IncrementalBuffer::new(&rules);
 
