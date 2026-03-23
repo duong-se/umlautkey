@@ -6,6 +6,14 @@ pub struct IncrementalBuffer<'def> {
     output: String,
 }
 
+pub const A_UMLAUT_LOWERCASE: char = 'ä';
+pub const A_UMLAUT_UPPERCASE: char = 'Ä';
+pub const O_UMLAUT_LOWERCASE: char = 'ö';
+pub const O_UMLAUT_UPPERCASE: char = 'Ö';
+pub const U_UMLAUT_LOWERCASE: char = 'ü';
+pub const U_UMLAUT_UPPERCASE: char = 'Ü';
+pub const ESZETT: char = 'ß';
+
 impl<'def> IncrementalBuffer<'def> {
     pub fn new(definition: &'def Definition) -> Self {
         Self {
@@ -24,24 +32,24 @@ impl<'def> IncrementalBuffer<'def> {
             return;
         }
 
-        if lowercase_ch == 'e' && (self.output.ends_with('ä') || self.output.ends_with('Ä')) {
-            let is_upper = self.output.ends_with('Ä');
+        if lowercase_ch == 'e' && (self.output.ends_with(A_UMLAUT_LOWERCASE) || self.output.ends_with(A_UMLAUT_UPPERCASE)) {
+            let is_upper = self.output.ends_with(A_UMLAUT_UPPERCASE);
             self.output.pop();
             self.output.push(if is_upper { 'A' } else { 'a' });
             self.output.push(if ch.is_uppercase() { 'E' } else { 'e' });
             return;
         }
 
-        if lowercase_ch == 'e' && (self.output.ends_with('ü') || self.output.ends_with('Ü')) {
-            let is_upper = self.output.ends_with('Ü');
+        if lowercase_ch == 'e' && (self.output.ends_with(U_UMLAUT_LOWERCASE) || self.output.ends_with(U_UMLAUT_UPPERCASE)) {
+            let is_upper = self.output.ends_with(U_UMLAUT_UPPERCASE);
             self.output.pop();
             self.output.push(if is_upper { 'U' } else { 'u' });
             self.output.push(if ch.is_uppercase() { 'E' } else { 'e' });
             return;
         }
 
-        if lowercase_ch == 'e' && (self.output.ends_with('ö') || self.output.ends_with('Ö')) {
-            let is_upper = self.output.ends_with('Ö');
+        if lowercase_ch == 'e' && (self.output.ends_with(O_UMLAUT_LOWERCASE) || self.output.ends_with(O_UMLAUT_UPPERCASE)) {
+            let is_upper = self.output.ends_with(O_UMLAUT_UPPERCASE);
             self.output.pop();
             self.output.push(if is_upper { 'O' } else { 'o' });
             self.output.push(if ch.is_uppercase() { 'E' } else { 'e' });
@@ -63,27 +71,27 @@ impl<'def> IncrementalBuffer<'def> {
                         match last_char {
                             'a' => {
                                 self.output.pop();
-                                self.output.push('ä');
+                                self.output.push(A_UMLAUT_LOWERCASE);
                             }
                             'A' => {
                                 self.output.pop();
-                                self.output.push('Ä');
+                                self.output.push(A_UMLAUT_UPPERCASE);
                             }
                             'o' => {
                                 self.output.pop();
-                                self.output.push('ö');
+                                self.output.push(O_UMLAUT_LOWERCASE);
                             }
                             'O' => {
                                 self.output.pop();
-                                self.output.push('Ö');
+                                self.output.push(O_UMLAUT_UPPERCASE);
                             }
                             'u' => {
                                 self.output.pop();
-                                self.output.push('ü');
+                                self.output.push(U_UMLAUT_LOWERCASE);
                             }
                             'U' => {
                                 self.output.pop();
-                                self.output.push('Ü');
+                                self.output.push(U_UMLAUT_UPPERCASE);
                             }
                             _ => {
                                 self.output.push(ch);
@@ -96,12 +104,9 @@ impl<'def> IncrementalBuffer<'def> {
                 }
                 Action::ModifyToEszett => {
                     // If typing 's' after another 's' -> 'ß'
-                    if self.input_history.last() == Some(&'s') {
+                    if self.input_history.last() == Some(&'s') || self.input_history.last() == Some(&'S') {
                         self.output.pop();
-                        self.output.push('ß');
-                    } else if self.input_history.last() == Some(&'S') {
-                        self.output.pop();
-                        self.output.push('ß');
+                        self.output.push(ESZETT);
                     } else {
                         self.output.push(ch);
                     }
@@ -223,17 +228,22 @@ mod tests {
         let rules = get_default_rules();
         let mut buffer = IncrementalBuffer::new(&rules);
 
-        buffer.push('ä');
+        buffer.push(A_UMLAUT_LOWERCASE);
         buffer.push('e');
         assert_eq!(buffer.view(), "ae");
         buffer.clear();
 
-        buffer.push('Ä');
+        buffer.push(A_UMLAUT_LOWERCASE);
+        buffer.push('E');
+        assert_eq!(buffer.view(), "aE");
+        buffer.clear();
+
+        buffer.push(A_UMLAUT_UPPERCASE);
         buffer.push('e');
         assert_eq!(buffer.view(), "Ae");
         buffer.clear();
 
-        buffer.push('Ä');
+        buffer.push(A_UMLAUT_UPPERCASE);
         buffer.push('E');
         assert_eq!(buffer.view(), "AE");
         buffer.clear();
@@ -244,17 +254,22 @@ mod tests {
         let rules = get_default_rules();
         let mut buffer = IncrementalBuffer::new(&rules);
 
-        buffer.push('ü');
+        buffer.push(U_UMLAUT_LOWERCASE);
         buffer.push('e');
         assert_eq!(buffer.view(), "ue");
         buffer.clear();
 
-        buffer.push('Ü');
+        buffer.push(U_UMLAUT_LOWERCASE);
+        buffer.push('E');
+        assert_eq!(buffer.view(), "uE");
+        buffer.clear();
+
+        buffer.push(U_UMLAUT_UPPERCASE);
         buffer.push('e');
         assert_eq!(buffer.view(), "Ue");
         buffer.clear();
 
-        buffer.push('Ü');
+        buffer.push(U_UMLAUT_UPPERCASE);
         buffer.push('E');
         assert_eq!(buffer.view(), "UE");
         buffer.clear();
@@ -265,17 +280,23 @@ mod tests {
         let rules = get_default_rules();
         let mut buffer = IncrementalBuffer::new(&rules);
 
-        buffer.push('ö');
+        buffer.push(O_UMLAUT_LOWERCASE);
         buffer.push('e');
         assert_eq!(buffer.view(), "oe");
         buffer.clear();
 
-        buffer.push('Ö');
+        buffer.push(O_UMLAUT_LOWERCASE);
+        buffer.push('E');
+        assert_eq!(buffer.view(), "oE");
+        buffer.clear();
+
+
+        buffer.push(O_UMLAUT_UPPERCASE);
         buffer.push('e');
         assert_eq!(buffer.view(), "Oe");
         buffer.clear();
 
-        buffer.push('Ö');
+        buffer.push(O_UMLAUT_UPPERCASE);
         buffer.push('E');
         assert_eq!(buffer.view(), "OE");
         buffer.clear();
@@ -299,19 +320,19 @@ mod tests {
 
         buffer.push('s');
         buffer.push('s');
-        assert_eq!(buffer.view(), "ß");
+        assert_eq!(buffer.view(), ESZETT.to_string());
 
         buffer.clear();
 
         buffer.push('S');
         buffer.push('s');
-        assert_eq!(buffer.view(), "ß");
+        assert_eq!(buffer.view(), ESZETT.to_string());
 
         buffer.clear();
 
         buffer.push('s');
         buffer.push('S');
-        assert_eq!(buffer.view(), "ß");
+        assert_eq!(buffer.view(), ESZETT.to_string());
     }
 
     #[test]
