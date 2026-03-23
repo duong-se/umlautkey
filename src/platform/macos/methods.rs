@@ -2,6 +2,7 @@ use crate::de;
 
 use de::methods::IncrementalBuffer;
 
+use core::result::Result;
 use libc::c_void;
 use objc2_core_foundation::{CFMachPort, CFRunLoop, kCFRunLoopCommonModes};
 use objc2_core_graphics::{
@@ -13,10 +14,49 @@ use std::ptr::NonNull;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-pub struct MacOS<'def> {
+pub trait EventPoster: Send + Sync {
+    fn post_backspace(&self, proxy: CGEventTapProxy, count: usize) -> Result<(), String>;
+    fn post_unicode(&self, proxy: CGEventTapProxy, text: &str) -> Result<(), String>;
+}
+
+pub struct RealEventPoster;
+
+impl EventPoster for RealEventPoster {
+    fn post_backspace(&self, proxy: CGEventTapProxy, count: usize) -> Result<(), String> {
+        let down = CGEvent::new_keyboard_event(None, KC_BACKSPACE as u16, true)
+            .ok_or_else(|| "create backspace down failed".to_string())?;
+        let up = CGEvent::new_keyboard_event(None, KC_BACKSPACE as u16, false)
+            .ok_or_else(|| "create backspace up failed".to_string())?;
+
+        for _ in 0..count {
+            unsafe {
+                CGEvent::tap_post_event(proxy, Some(&down));
+                CGEvent::tap_post_event(proxy, Some(&up));
+            }
+        }
+
+        Ok(())
+    }
+    fn post_unicode(&self, proxy: CGEventTapProxy, text: &str) -> Result<(), String> {
+            let utf16: Vec<u16> = text.encode_utf16().collect();
+
+    let event = CGEvent::new_keyboard_event(None, 0, true)
+        .ok_or_else(|| "create unicode event failed".to_string())?;
+
+    unsafe {
+        CGEvent::keyboard_set_unicode_string(Some(&event), utf16.len() as _, utf16.as_ptr());
+        CGEvent::tap_post_event(proxy, Some(&event));
+    }
+
+    Ok(())
+    }
+}
+
+pub struct MacOS<'def, P: EventPoster> {
     buffer: &'def Mutex<IncrementalBuffer<'static>>,
     raw_tracker: &'def Mutex<String>,
     spoof_until: &'def Mutex<Option<Instant>>,
+    poster: P,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,7 +65,7 @@ enum TapAction {
     Block,
 }
 
-unsafe extern "C-unwind" fn tap_callback(
+unsafe extern "C-unwind" fn tap_callback<P: EventPoster>(
     proxy: CGEventTapProxy,
     event_type: CGEventType,
     event: NonNull<CGEvent>,
@@ -34,7 +74,7 @@ unsafe extern "C-unwind" fn tap_callback(
     let _ = user_info;
     let _ = proxy;
     let _ = event_type;
-    let state: &mut MacOS<'_> = unsafe { &mut *(user_info as *mut MacOS) };
+    let state = unsafe { &mut *(user_info as *mut MacOS<P>) };
 
     if state.is_in_spoof_window() {
         return std::ptr::null_mut();
@@ -68,16 +108,18 @@ unsafe extern "C-unwind" fn tap_callback(
     }
 }
 
-impl<'def> MacOS<'def> {
+impl<'def, P: EventPoster> MacOS<'def, P> {
     pub fn new(
         buffer: &'def Mutex<IncrementalBuffer<'static>>,
         raw_tracker: &'def Mutex<String>,
         spoof_until: &'def Mutex<Option<Instant>>,
+        poster: P,
     ) -> Self {
         Self {
             buffer: buffer,
             raw_tracker: raw_tracker,
             spoof_until: spoof_until,
+            poster,
         }
     }
 
@@ -150,12 +192,12 @@ impl<'def> MacOS<'def> {
 
         self.begin_spoof_window(Duration::from_millis(50));
 
-        if let Err(err) = send_backspace(proxy, delete_count) {
+        if let Err(err) = self.poster.post_backspace(proxy, delete_count) {
             eprintln!("send_backspace error: {}", err);
             return;
         }
 
-        if let Err(err) = send_unicode(proxy, transformed) {
+        if let Err(err) = self.poster.post_unicode(proxy, transformed) {
             eprintln!("send_unicode error: {}", err);
             return;
         }
@@ -178,15 +220,14 @@ impl<'def> MacOS<'def> {
             | (1 << CGEventType::LeftMouseDown.0 as u64)
             | (1 << CGEventType::RightMouseDown.0 as u64)
             | (1 << CGEventType::OtherMouseDown.0 as u64);
-        let self_ptr = self as *mut MacOS as *mut std::ffi::c_void;
-
+        let self_ptr = self as *mut MacOS<P> as *mut std::ffi::c_void;
         let tap: objc2_core_foundation::CFRetained<CFMachPort> = unsafe {
             CGEvent::tap_create(
                 CGEventTapLocation::AnnotatedSessionEventTap,
                 CGEventTapPlacement::HeadInsertEventTap,
                 CGEventTapOptions::Default,
                 mask,
-                Some(tap_callback),
+                Some(tap_callback::<P>),
                 self_ptr,
             )
         }
@@ -260,36 +301,6 @@ const KC_LEFT: u16 = 123;
 const KC_RIGHT: u16 = 124;
 const KC_DOWN: u16 = 125;
 const KC_UP: u16 = 126;
-
-fn send_backspace(proxy: CGEventTapProxy, count: usize) -> Result<(), String> {
-    let down = CGEvent::new_keyboard_event(None, KC_BACKSPACE as u16, true)
-        .ok_or_else(|| "create backspace down failed".to_string())?;
-    let up = CGEvent::new_keyboard_event(None, KC_BACKSPACE as u16, false)
-        .ok_or_else(|| "create backspace up failed".to_string())?;
-
-    for _ in 0..count {
-        unsafe {
-            CGEvent::tap_post_event(proxy, Some(&down));
-            CGEvent::tap_post_event(proxy, Some(&up));
-        }
-    }
-
-    Ok(())
-}
-
-fn send_unicode(proxy: CGEventTapProxy, text: &str) -> Result<(), String> {
-    let utf16: Vec<u16> = text.encode_utf16().collect();
-
-    let event = CGEvent::new_keyboard_event(None, 0, true)
-        .ok_or_else(|| "create unicode event failed".to_string())?;
-
-    unsafe {
-        CGEvent::keyboard_set_unicode_string(Some(&event), utf16.len() as _, utf16.as_ptr());
-        CGEvent::tap_post_event(proxy, Some(&event));
-    }
-
-    Ok(())
-}
 
 fn has_command_like_modifier(flags: CGEventFlags) -> bool {
     flags.contains(CGEventFlags::MaskControl)
@@ -370,21 +381,40 @@ fn macos_keycode_to_char(keycode: u16, shift: bool, caps_lock: bool) -> Option<c
 
 #[cfg(test)]
 mod tests {
-    
+
     use super::*;
-    use de::rules::{Action};
+    use de::rules::Action;
     use std::{collections::HashMap, sync::Mutex};
-    
-    use crate::{get_buffer, get_raw_tracker, get_rules, get_spoof_until};
+
+    use crate::{
+        de::methods::A_UMLAUT_LOWERCASE, get_buffer, get_raw_tracker, get_rules, get_spoof_until,
+    };
+
+    struct MockPoster {
+        pub logs: std::sync::Arc<Mutex<Vec<String>>>,
+    }
+
+    impl EventPoster for MockPoster {
+        fn post_backspace(&self, _: CGEventTapProxy, count: usize) -> Result<(), String> {
+            self.logs.lock().unwrap().push(format!("DELETE_{}", count));
+            Ok(())
+        }
+        fn post_unicode(&self, _: CGEventTapProxy, text: &str) -> Result<(), String> {
+            self.logs.lock().unwrap().push(text.to_string());
+            Ok(())
+        }
+    }
 
     fn setup_test_macos<'a>(
         buffer: &'a Mutex<IncrementalBuffer<'static>>,
         tracker: &'a Mutex<String>,
         spoof: &'a Mutex<Option<Instant>>,
-    ) -> MacOS<'a> {
-        MacOS::new(buffer, tracker, spoof)
+    ) -> (MacOS<'a, MockPoster>, std::sync::Arc<Mutex<Vec<String>>>) {
+        let logs = std::sync::Arc::new(Mutex::new(vec![]));
+        let poster = MockPoster { logs: logs.clone() };
+        let macos = MacOS::new(buffer, tracker, spoof, poster);
+        (macos, logs)
     }
-
     #[test]
     fn test_keycode_conversion() {
         assert_eq!(macos_keycode_to_char(KC_A, false, false), Some('a'));
@@ -418,7 +448,7 @@ mod tests {
         let raw_tracker = get_raw_tracker(String::from("hello"));
         let spoof_until = get_spoof_until();
 
-        let mut macos = setup_test_macos(&buffer, &raw_tracker, &spoof_until);
+        let (mut macos, _) = setup_test_macos(&buffer, &raw_tracker, &spoof_until);
 
         macos.handle_backspace();
         assert_eq!(*raw_tracker.lock().unwrap(), "hell");
@@ -430,7 +460,7 @@ mod tests {
         let buffer = get_buffer(rules);
         let raw_tracker = Mutex::new(String::new());
         let spoof_until = get_spoof_until();
-        let mut macos = MacOS::new(&buffer, &raw_tracker, &spoof_until);
+        let (mut macos, logs) = setup_test_macos(&buffer, &raw_tracker, &spoof_until);
 
         let dummy_proxy: CGEventTapProxy = std::ptr::null_mut();
 
@@ -444,5 +474,8 @@ mod tests {
         macos.handle_key_down(dummy_proxy, KC_A, CGEventFlags::empty());
         macos.handle_key_down(dummy_proxy, KC_E, CGEventFlags::empty());
         assert_eq!(*raw_tracker.lock().unwrap(), "ae".to_string());
+        let history = logs.lock().unwrap();
+        assert_eq!(history[0], "DELETE_2");
+        assert_eq!(history[1], A_UMLAUT_LOWERCASE.to_string());
     }
 }

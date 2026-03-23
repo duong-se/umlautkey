@@ -1,6 +1,6 @@
 use de::methods::IncrementalBuffer;
 use de::rules::{Action, get_default_rules};
-use platform::macos::methods::MacOS;
+use platform::macos::methods::{MacOS, RealEventPoster};
 use std::sync::{OnceLock};
 use std::{collections::HashMap, sync::Mutex, time::Instant};
 
@@ -37,6 +37,7 @@ fn main() {
     println!("🚀 UmlautKey macOS objc2-core-graphics backend");
     println!("Rules: ae -> ä, oe -> ö, ue -> ü, ss -> ß");
     println!("Remember Accessibility permission.");
-    let mut macos = MacOS::new(&buffer, &raw_tracker, &spoof_until);
+    let poster = RealEventPoster{};
+    let mut macos = MacOS::new(&buffer, &raw_tracker, &spoof_until, poster);
     macos.run_event_tap();
 }
