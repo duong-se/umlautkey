@@ -1,4 +1,4 @@
-use crate::{de};
+use crate::{IS_ENABLED, de};
 
 use de::methods::IncrementalBuffer;
 
@@ -11,6 +11,7 @@ use objc2_core_graphics::{
 };
 use std::ptr::NonNull;
 use std::sync::Mutex;
+use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
 pub trait EventPoster: Send + Sync {
@@ -87,6 +88,11 @@ unsafe extern "C-unwind" fn tap_callback<P: EventPoster>(
                 CGEvent::integer_value_field(event_opt, CGEventField::EventSourceStateID);
 
             if source_state_id != 1 {
+                return event.as_ptr();
+            }
+
+            let is_enabled = IS_ENABLED.load(Ordering::SeqCst);
+            if !is_enabled {
                 return event.as_ptr();
             }
 

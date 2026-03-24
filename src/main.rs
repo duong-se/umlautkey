@@ -99,7 +99,8 @@ fn create_menu(mtm: MainThreadMarker, handler: &MenuHandler) -> Retained<NSMenu>
         toggle_item.setTitle(ns_string!("Toggle Umlaut"));
         toggle_item.setTarget(Some(handler));
         toggle_item.setAction(Some(sel!(toggleEngine:)));
-
+        let initial_state = if IS_ENABLED.load(Ordering::SeqCst) { 1 } else { 0 };
+        toggle_item.setState(initial_state);
         menu.addItem(&toggle_item);
 
         menu.addItem(&NSMenuItem::separatorItem(mtm));
