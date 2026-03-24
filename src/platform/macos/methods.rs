@@ -9,7 +9,6 @@ use objc2_core_graphics::{
     CGEvent, CGEventField, CGEventFlags, CGEventTapLocation, CGEventTapOptions,
     CGEventTapPlacement, CGEventTapProxy, CGEventType,
 };
-use std::io::{self, Write};
 use std::ptr::NonNull;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -38,17 +37,17 @@ impl EventPoster for RealEventPoster {
         Ok(())
     }
     fn post_unicode(&self, proxy: CGEventTapProxy, text: &str) -> Result<(), String> {
-            let utf16: Vec<u16> = text.encode_utf16().collect();
+        let utf16: Vec<u16> = text.encode_utf16().collect();
 
-    let event = CGEvent::new_keyboard_event(None, 0, true)
-        .ok_or_else(|| "create unicode event failed".to_string())?;
+        let event = CGEvent::new_keyboard_event(None, 0, true)
+            .ok_or_else(|| "create unicode event failed".to_string())?;
 
-    unsafe {
-        CGEvent::keyboard_set_unicode_string(Some(&event), utf16.len() as _, utf16.as_ptr());
-        CGEvent::tap_post_event(proxy, Some(&event));
-    }
+        unsafe {
+            CGEvent::keyboard_set_unicode_string(Some(&event), utf16.len() as _, utf16.as_ptr());
+            CGEvent::tap_post_event(proxy, Some(&event));
+        }
 
-    Ok(())
+        Ok(())
     }
 }
 
@@ -131,6 +130,7 @@ impl<'def, P: EventPoster> MacOS<'def, P> {
     ) -> TapAction {
         if should_clear_tracker_keycode(keycode, flags) {
             self.clear_tracker();
+            self.buffer.lock().unwrap().clear();
             return TapAction::Pass;
         }
 
@@ -147,52 +147,54 @@ impl<'def, P: EventPoster> MacOS<'def, P> {
         let shift = flags.contains(CGEventFlags::MaskShift);
         let caps_lock = flags.contains(CGEventFlags::MaskAlphaShift);
 
-        let Some(ch) = macos_keycode_to_char(keycode, shift, caps_lock) else {
-            return TapAction::Pass;
-        };
+        let ch = macos_keycode_to_char(keycode, shift, caps_lock).unwrap();
+        let old_raw = { self.raw_tracker.lock().unwrap().clone() };
 
-        let current = {
+        {
             let mut tracker = self.raw_tracker.lock().unwrap();
             tracker.push(ch);
-            tracker.clone()
-        };
+        }
 
-        let transformed = self.handle_transform(&current);
-
-        if current != transformed {
-            self.apply_transformation(proxy, &current, &transformed);
+        let current_raw = { self.raw_tracker.lock().unwrap().clone() };
+        let transformed = self.handle_transform(&current_raw);
+        if current_raw != transformed {
+            let display_to_delete = self.handle_transform(&old_raw).chars().count();
+            self.apply_transformation(proxy, display_to_delete, &transformed);
             return TapAction::Block;
         }
 
         TapAction::Pass
     }
     fn handle_backspace(&mut self) {
-        let mut tracker = self.raw_tracker.lock().unwrap();
+        let mut tracker = { self.raw_tracker.lock().unwrap() };
         tracker.pop();
     }
 
     fn clear_tracker(&mut self) {
-        let mut tracker = self.raw_tracker.lock().unwrap();
+        let mut tracker = { self.raw_tracker.lock().unwrap() };
         tracker.clear();
     }
 
     fn begin_spoof_window(&mut self, duration: Duration) {
         let until = Instant::now() + duration;
-        let mut spoof_until = self.spoof_until.lock().unwrap();
+        let mut spoof_until = { self.spoof_until.lock().unwrap() };
         *spoof_until = Some(until);
     }
 
     fn is_in_spoof_window(&mut self) -> bool {
-        let spoof_until = self.spoof_until.lock().unwrap();
+        let spoof_until = { self.spoof_until.lock().unwrap() };
         matches!(*spoof_until, Some(until) if Instant::now() <= until)
     }
 
-    fn apply_transformation(&mut self, proxy: CGEventTapProxy, current: &str, transformed: &str) {
-        let delete_count = current.chars().count();
-
+    fn apply_transformation(
+        &mut self,
+        proxy: CGEventTapProxy,
+        display_to_delete: usize,
+        transformed: &str,
+    ) {
         self.begin_spoof_window(Duration::from_millis(50));
 
-        if let Err(err) = self.poster.post_backspace(proxy, delete_count) {
+        if let Err(err) = self.poster.post_backspace(proxy, display_to_delete) {
             eprintln!("send_backspace error: {}", err);
             return;
         }
@@ -201,11 +203,10 @@ impl<'def, P: EventPoster> MacOS<'def, P> {
             eprintln!("send_unicode error: {}", err);
             return;
         }
-        let _ = io::stdout().flush();
     }
 
     fn handle_transform(&mut self, input: &str) -> String {
-        let mut buffer = self.buffer.lock().unwrap();
+        let mut buffer = { self.buffer.lock().unwrap() };
         for c in input.chars() {
             buffer.push(c);
         }
@@ -475,7 +476,29 @@ mod tests {
         macos.handle_key_down(dummy_proxy, KC_E, CGEventFlags::empty());
         assert_eq!(*raw_tracker.lock().unwrap(), "ae".to_string());
         let history = logs.lock().unwrap();
-        assert_eq!(history[0], "DELETE_2");
+        assert_eq!(history[0], "DELETE_1");
         assert_eq!(history[1], A_UMLAUT_LOWERCASE.to_string());
+    }
+
+    #[test]
+    fn test_handle_key_down_tracking_without_transformed() {
+        let rules: &'static HashMap<char, Action> = get_rules();
+        let buffer = get_buffer(rules);
+        let raw_tracker = Mutex::new(String::new());
+        let spoof_until = get_spoof_until();
+        let (mut macos, logs) = setup_test_macos(&buffer, &raw_tracker, &spoof_until);
+
+        let dummy_proxy: CGEventTapProxy = std::ptr::null_mut();
+
+        macos.handle_key_down(dummy_proxy, KC_SPACE, CGEventFlags::empty());
+        macos.handle_key_down(dummy_proxy, KC_A, CGEventFlags::empty());
+        macos.handle_key_down(dummy_proxy, KC_E, CGEventFlags::empty());
+        macos.handle_key_down(dummy_proxy, KC_E, CGEventFlags::empty());
+        assert_eq!(*raw_tracker.lock().unwrap(), "aee".to_string());
+        let history: std::sync::MutexGuard<'_, Vec<String>> = logs.lock().unwrap();
+        assert_eq!(history[0], "DELETE_1");
+        assert_eq!(history[1], A_UMLAUT_LOWERCASE.to_string());
+        assert_eq!(history[2], "DELETE_1".to_string());
+        assert_eq!(history[3], "ae".to_string());
     }
 }
