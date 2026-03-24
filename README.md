@@ -51,6 +51,7 @@ Once running, the app stays in your Menu Bar.
 | **Type ue** | `u` + `e` + `e`     | `ue`   |
 | **Type ß**  | `s` + `s`           | `ß`    |
 | **Type ss** | `s` + `s` + `s`     | `ss`   |
+| **Type €**  | `Shift` + `4($)`    | `€`    |
 
 ---
 
