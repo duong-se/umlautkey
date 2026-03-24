@@ -1,4 +1,4 @@
-use crate::de;
+use crate::{de};
 
 use de::methods::IncrementalBuffer;
 
