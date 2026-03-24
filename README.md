@@ -8,7 +8,7 @@
 
 ## ✨ Features
 
-- **Smart Transformation**: Instantly converts `ae`, `oe`, `ue` into `ä`, `ö`, `ü` as you type.
+- **Smart Transformation**: Instantly converts `ae`, `oe`, `ue`, `ss`, `Shift + 4($)` into `ä`, `ö`, `ü`, `ß`, `€` as you type.
 - **Visual Feedback**: Dynamic Menu Bar icon (`Ä` for Enabled, `E` for Disabled).
 - **Native Performance**: Zero-latency interceptor built with Rust and macOS CoreGraphics Event Taps.
 - **Privacy First**: No data collection. No internet access. No logging.
