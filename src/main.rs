@@ -6,29 +6,34 @@ mod de;
 mod platform;
 use de::methods::IncrementalBuffer;
 use de::rules::{Action, get_default_rules};
-use platform::macos::methods::{MacOS, RealEventPoster};
+use platform::macos::methods::{ MacOS, RealEventPoster};
 
 use std::collections::HashMap;
 
 use objc2::rc::Retained;
 use objc2::{MainThreadOnly, define_class, sel};
 use objc2_app_kit::{
-    NSApplication,
-    NSMenu,
-    NSMenuItem,
-    NSStatusBar,
-    NSStatusItem,
-    NSVariableStatusItemLength,
+    NSApplication, NSMenu, NSMenuItem, NSStatusBar, NSStatusItem, NSVariableStatusItemLength,
 };
 use objc2_foundation::{MainThreadMarker, NSObject, ns_string};
+use std::io::{self, Write};
 
 pub static IS_ENABLED: AtomicBool = AtomicBool::new(true);
 
 struct RawStatusItem(*const NSStatusItem);
 unsafe impl Send for RawStatusItem {}
 unsafe impl Sync for RawStatusItem {}
+static GLOBAL_TRAY_ICON_TITLE: OnceLock<RawStatusItem> = OnceLock::new();
 
-static GLOBAL_STATUS_ITEM: OnceLock<RawStatusItem> = OnceLock::new();
+struct RawMenuItem(*const NSMenuItem);
+unsafe impl Send for RawMenuItem {}
+unsafe impl Sync for RawMenuItem {}
+static GLOBAL_TOGGLE_MENU_ITEM: OnceLock<RawMenuItem> = OnceLock::new();
+
+struct RawMenuHandler(*const MenuHandler);
+unsafe impl Send for RawMenuHandler {}
+unsafe impl Sync for RawMenuHandler {}
+static GLOBAL_HANDLER: OnceLock<RawMenuHandler> = OnceLock::new();
 
 static RULES: OnceLock<HashMap<char, Action>> = OnceLock::new();
 fn get_rules() -> &'static HashMap<char, Action> {
@@ -53,6 +58,7 @@ fn get_spoof_until() -> &'static Mutex<Option<Instant>> {
 fn toggle_engine_rust() {
     let current = IS_ENABLED.load(Ordering::SeqCst);
     IS_ENABLED.store(!current, Ordering::SeqCst);
+    io::stdout().flush().unwrap();
 }
 
 define_class!(
@@ -67,14 +73,17 @@ define_class!(
             toggle_engine_rust();
             let is_enabled = IS_ENABLED.load(Ordering::SeqCst);
             let new_title = if is_enabled { ns_string!("Ä") } else { ns_string!("E") };
-            if let Some(raw_item) = GLOBAL_STATUS_ITEM.get() {
+            if let Some(raw_tray_icon_item) = GLOBAL_TRAY_ICON_TITLE.get() {
                 let mtm = MainThreadMarker::from(self);
-                let status_item = unsafe { &*raw_item.0 };
+                let tray_icon = unsafe { &*raw_tray_icon_item.0 };
 
-                if let Some(button) = status_item.button(mtm) {
+                if let Some(button) = tray_icon.button(mtm) {
                     button.setTitle(new_title);
                 }
-                if let Some(item) = _sender {
+            }
+            if let Some(raw_toggle_menu_item) = GLOBAL_TOGGLE_MENU_ITEM.get() {
+                unsafe {
+                    let item = &*raw_toggle_menu_item.0;
                     item.setState(if is_enabled { 1 } else { 0 });
                 }
             }
@@ -97,10 +106,20 @@ fn create_menu(mtm: MainThreadMarker, handler: &MenuHandler) -> Retained<NSMenu>
     unsafe {
         let toggle_item = NSMenuItem::new(mtm);
         toggle_item.setTitle(ns_string!("Toggle Umlaut"));
+        toggle_item.setKeyEquivalent(ns_string!("z"));
+        toggle_item.setKeyEquivalentModifierMask(
+            objc2_app_kit::NSEventModifierFlags::Command
+                | objc2_app_kit::NSEventModifierFlags::Shift,
+        );
         toggle_item.setTarget(Some(handler));
         toggle_item.setAction(Some(sel!(toggleEngine:)));
-        let initial_state = if IS_ENABLED.load(Ordering::SeqCst) { 1 } else { 0 };
+        let initial_state = if IS_ENABLED.load(Ordering::SeqCst) {
+            1
+        } else {
+            0
+        };
         toggle_item.setState(initial_state);
+        let _ = GLOBAL_TOGGLE_MENU_ITEM.set(RawMenuItem(Retained::as_ptr(&toggle_item)));
         menu.addItem(&toggle_item);
 
         menu.addItem(&NSMenuItem::separatorItem(mtm));
@@ -121,9 +140,9 @@ fn main() {
     let status_item_leaked = Box::leak(Box::new(
         status_bar.statusItemWithLength(NSVariableStatusItemLength),
     ));
+    let _ = GLOBAL_TRAY_ICON_TITLE.set(RawStatusItem(&**status_item_leaked as *const NSStatusItem));
     let handler_leaked: &mut Retained<MenuHandler> = Box::leak(Box::new(MenuHandler::new(mtm)));
-    let _ = GLOBAL_STATUS_ITEM.set(RawStatusItem(&**status_item_leaked as *const NSStatusItem));
-
+    let _ = GLOBAL_HANDLER.set(RawMenuHandler(Retained::as_ptr(handler_leaked)));
     if let Some(button) = status_item_leaked.button(mtm) {
         button.setTitle(if IS_ENABLED.load(Ordering::Relaxed) {
             ns_string!("Ä")

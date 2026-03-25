@@ -1,6 +1,8 @@
-use crate::{IS_ENABLED, de};
+use crate::{GLOBAL_HANDLER, IS_ENABLED, MenuHandler, de};
 
 use de::methods::IncrementalBuffer;
+use objc2::{msg_send, sel};
+use objc2_foundation::NSObject;
 
 use core::result::Result;
 use libc::c_void;
@@ -65,6 +67,22 @@ enum TapAction {
     Block,
 }
 
+pub fn dispatch_toggle_engine_in_main_thread() {
+    if let Some(wrapper) = GLOBAL_HANDLER.get() {
+        unsafe {
+            let raw_item = wrapper.0;
+            let handler_obj: &MenuHandler = &*raw_item;
+            let _: () = msg_send![
+                handler_obj,
+                performSelectorOnMainThread: sel!(toggleEngine:),
+                withObject: Option::<&NSObject>::None,
+                waitUntilDone: false
+            ];
+        }
+    }
+}
+
+
 unsafe extern "C-unwind" fn tap_callback<P: EventPoster>(
     proxy: CGEventTapProxy,
     event_type: CGEventType,
@@ -91,15 +109,23 @@ unsafe extern "C-unwind" fn tap_callback<P: EventPoster>(
                 return event.as_ptr();
             }
 
-            let is_enabled = IS_ENABLED.load(Ordering::SeqCst);
-            if !is_enabled {
-                return event.as_ptr();
-            }
-
             let keycode =
                 CGEvent::integer_value_field(event_opt, CGEventField::KeyboardEventKeycode) as u16;
 
             let flags = CGEvent::flags(event_opt);
+            let is_z_key = keycode == KC_Z;
+            let is_cmd_shift = flags.contains(CGEventFlags::MaskCommand)
+                && flags.contains(CGEventFlags::MaskShift);
+
+            if is_z_key && is_cmd_shift {
+                dispatch_toggle_engine_in_main_thread();
+                return std::ptr::null_mut();
+            }
+
+            let is_enabled = IS_ENABLED.load(Ordering::SeqCst);
+            if !is_enabled {
+                return event.as_ptr();
+            }
             match state.handle_key_down(proxy, keycode, flags) {
                 TapAction::Pass => event.as_ptr(),
                 TapAction::Block => std::ptr::null_mut(),
@@ -253,61 +279,61 @@ impl<'def, P: EventPoster> MacOS<'def, P> {
     }
 }
 
-const KC_A: u16 = 0;
-const KC_S: u16 = 1;
-const KC_D: u16 = 2;
-const KC_F: u16 = 3;
-const KC_H: u16 = 4;
-const KC_G: u16 = 5;
-const KC_Z: u16 = 6;
-const KC_X: u16 = 7;
-const KC_C: u16 = 8;
-const KC_V: u16 = 9;
-const KC_B: u16 = 11;
-const KC_Q: u16 = 12;
-const KC_W: u16 = 13;
-const KC_E: u16 = 14;
-const KC_R: u16 = 15;
-const KC_Y: u16 = 16;
-const KC_T: u16 = 17;
-const KC_1: u16 = 18;
-const KC_2: u16 = 19;
-const KC_3: u16 = 20;
-const KC_4: u16 = 21;
-const KC_6: u16 = 22;
-const KC_5: u16 = 23;
-const KC_EQUAL: u16 = 24;
-const KC_9: u16 = 25;
-const KC_7: u16 = 26;
-const KC_MINUS: u16 = 27;
-const KC_8: u16 = 28;
-const KC_0: u16 = 29;
-const KC_RBRACKET: u16 = 30;
-const KC_O: u16 = 31;
-const KC_U: u16 = 32;
-const KC_LBRACKET: u16 = 33;
-const KC_I: u16 = 34;
-const KC_P: u16 = 35;
-const KC_ENTER: u16 = 36;
-const KC_L: u16 = 37;
-const KC_J: u16 = 38;
-const KC_QUOTE: u16 = 39;
-const KC_K: u16 = 40;
-const KC_SEMICOLON: u16 = 41;
-const KC_BACKSLASH: u16 = 42;
-const KC_COMMA: u16 = 43;
-const KC_SLASH: u16 = 44;
-const KC_N: u16 = 45;
-const KC_M: u16 = 46;
-const KC_DOT: u16 = 47;
-const KC_TAB: u16 = 48;
-const KC_SPACE: u16 = 49;
-const KC_BACKSPACE: u16 = 51;
-const KC_ESCAPE: u16 = 53;
-const KC_LEFT: u16 = 123;
-const KC_RIGHT: u16 = 124;
-const KC_DOWN: u16 = 125;
-const KC_UP: u16 = 126;
+pub const KC_A: u16 = 0;
+pub const KC_S: u16 = 1;
+pub const KC_D: u16 = 2;
+pub const KC_F: u16 = 3;
+pub const KC_H: u16 = 4;
+pub const KC_G: u16 = 5;
+pub const KC_Z: u16 = 6;
+pub const KC_X: u16 = 7;
+pub const KC_C: u16 = 8;
+pub const KC_V: u16 = 9;
+pub const KC_B: u16 = 11;
+pub const KC_Q: u16 = 12;
+pub const KC_W: u16 = 13;
+pub const KC_E: u16 = 14;
+pub const KC_R: u16 = 15;
+pub const KC_Y: u16 = 16;
+pub const KC_T: u16 = 17;
+pub const KC_1: u16 = 18;
+pub const KC_2: u16 = 19;
+pub const KC_3: u16 = 20;
+pub const KC_4: u16 = 21;
+pub const KC_6: u16 = 22;
+pub const KC_5: u16 = 23;
+pub const KC_EQUAL: u16 = 24;
+pub const KC_9: u16 = 25;
+pub const KC_7: u16 = 26;
+pub const KC_MINUS: u16 = 27;
+pub const KC_8: u16 = 28;
+pub const KC_0: u16 = 29;
+pub const KC_RBRACKET: u16 = 30;
+pub const KC_O: u16 = 31;
+pub const KC_U: u16 = 32;
+pub const KC_LBRACKET: u16 = 33;
+pub const KC_I: u16 = 34;
+pub const KC_P: u16 = 35;
+pub const KC_ENTER: u16 = 36;
+pub const KC_L: u16 = 37;
+pub const KC_J: u16 = 38;
+pub const KC_QUOTE: u16 = 39;
+pub const KC_K: u16 = 40;
+pub const KC_SEMICOLON: u16 = 41;
+pub const KC_BACKSLASH: u16 = 42;
+pub const KC_COMMA: u16 = 43;
+pub const KC_SLASH: u16 = 44;
+pub const KC_N: u16 = 45;
+pub const KC_M: u16 = 46;
+pub const KC_DOT: u16 = 47;
+pub const KC_TAB: u16 = 48;
+pub const KC_SPACE: u16 = 49;
+pub const KC_BACKSPACE: u16 = 51;
+pub const KC_ESCAPE: u16 = 53;
+pub const KC_LEFT: u16 = 123;
+pub const KC_RIGHT: u16 = 124;
+pub const KC_DOWN: u16 = 125;
+pub const KC_UP: u16 = 126;
 
 fn has_command_like_modifier(flags: CGEventFlags) -> bool {
     flags.contains(CGEventFlags::MaskControl)
