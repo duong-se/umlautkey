@@ -6,14 +6,15 @@ mod de;
 mod platform;
 use de::methods::IncrementalBuffer;
 use de::rules::{Action, get_default_rules};
-use platform::macos::methods::{ MacOS, RealEventPoster};
+use platform::macos::methods::{MacOS, RealEventPoster};
 
 use std::collections::HashMap;
 
 use objc2::rc::Retained;
 use objc2::{MainThreadOnly, define_class, sel};
 use objc2_app_kit::{
-    NSApplication, NSMenu, NSMenuItem, NSStatusBar, NSStatusItem, NSVariableStatusItemLength,
+    NSApplication, NSMenu, NSMenuItem, NSSound, NSStatusBar, NSStatusItem,
+    NSVariableStatusItemLength,
 };
 use objc2_foundation::{MainThreadMarker, NSObject, ns_string};
 use std::io::{self, Write};
@@ -71,6 +72,11 @@ define_class!(
         #[unsafe(method(toggleEngine:))]
         fn toggle_engine_objc(&self, _sender: Option<&NSMenuItem>) {
             toggle_engine_rust();
+            if _sender.is_none() {
+                if let Some(sound) = NSSound::soundNamed(ns_string!("Tink")) {
+                    sound.play();
+                }
+            }
             let is_enabled = IS_ENABLED.load(Ordering::SeqCst);
             let new_title = if is_enabled { ns_string!("Ä") } else { ns_string!("E") };
             if let Some(raw_tray_icon_item) = GLOBAL_TRAY_ICON_TITLE.get() {
@@ -104,7 +110,7 @@ fn create_menu(mtm: MainThreadMarker, handler: &MenuHandler) -> Retained<NSMenu>
     let menu = NSMenu::new(mtm);
 
     unsafe {
-        let toggle_item = NSMenuItem::new(mtm);
+        let toggle_item: Retained<NSMenuItem> = NSMenuItem::new(mtm);
         toggle_item.setTitle(ns_string!("Toggle Umlaut"));
         toggle_item.setKeyEquivalent(ns_string!("z"));
         toggle_item.setKeyEquivalentModifierMask(
