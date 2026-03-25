@@ -18,7 +18,7 @@ all: release-mac
 ## release-mac: Build the Rust binary and package it into a macOS .app bundle
 release-mac:
 	@echo "🔨 Building Rust project in release mode..."
-	cargo build --release
+	cargo bundle --release
 
 	@echo "📁 Creating App Bundle structure..."
 	mkdir -p $(APP_BUNDLE)/Contents/MacOS
