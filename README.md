@@ -39,7 +39,7 @@ Because UmlautKey functions as a global keyboard interceptor, macOS requires exp
 
 ## 🎮 How to Use
 
-Once running, the app stays in your Menu Bar.
+Once running, the app stays in your Menu Bar. You can toggle on/off by hotkey CMD + Shift + Z
 
 | Command     | Shortcut / Sequence | Result |
 | :---------- | :------------------ | :----- |
