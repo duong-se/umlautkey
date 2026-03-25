@@ -20,26 +20,6 @@ release-mac:
 	@echo "🔨 Building Rust project in release mode..."
 	cargo bundle --release
 
-	@echo "📁 Creating App Bundle structure..."
-	mkdir -p $(APP_BUNDLE)/Contents/MacOS
-	mkdir -p $(APP_BUNDLE)/Contents/Resources
-
-	@echo "📦 Copying binary and stripping symbols..."
-	cp $(RELEASE_BIN) $(APP_BUNDLE)/Contents/MacOS/
-	strip $(APP_BUNDLE)/Contents/MacOS/$(BINARY_NAME)
-	chmod +x $(APP_BUNDLE)/Contents/MacOS/$(BINARY_NAME)
-
-	@echo "📄 Copying Info.plist..."
-	cp $(PLIST_PATH) $(APP_BUNDLE)/Contents/
-
-	@echo "🎨 Checking for Icon file..."
-	@if [ -f $(ICON_PATH) ]; then \
-		cp $(ICON_PATH) $(APP_BUNDLE)/Contents/Resources/; \
-		echo "✅ Icon added to bundle."; \
-	else \
-		echo "⚠️  Warning: No icon found at $(ICON_PATH). Skipping."; \
-	fi
-
 	@echo "🚀 Build Complete: $(APP_BUNDLE) is ready."
 	@echo "ℹ️  Note: You may need to grant Accessibility permissions in System Settings."
 
