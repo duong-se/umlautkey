@@ -1,7 +1,7 @@
 [package]
 name = "umlautkey"
 description = "The lightweight, open-source utility for typing German Umlauts (ä, ö, ü, ß) effortlessly on standard US/International keyboards."
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
 
 [dependencies]
@@ -9,6 +9,7 @@ cargo-bundle = "0.9.0"
 libc = "0.2.183"
 
 [target.'cfg(target_os="macos")'.dependencies]
+core-foundation = "0.10.1"
 objc2 = "0.6.4"
 objc2-foundation = "0.3.2"
 objc2-app-kit = "0.3.2"
@@ -19,7 +20,7 @@ objc2-core-graphics = { version = "0.3.2", features = ["CGEvent", "CGEventTypes"
 name = "UmlautKey"
 identifier = "com.umlautkey.app"
 icon = ["icons/umlautkey_designed.icns"]
-version = "0.1.0"
+version = "1.0.0"
 resources = []
 copyright = "Copyright (c) Duong Pham 2026. All rights reserved."
 category = "public.app-category.utilities"

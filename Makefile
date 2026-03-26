@@ -19,9 +19,10 @@ all: release-mac
 release-mac:
 	@echo "🔨 Building Rust project in release mode..."
 	cargo bundle --release
+	@echo "🔨 Signing..."
+	codesign --force --deep --sign - target/release/bundle/osx/UmlautKey.app
 
 	@echo "🚀 Build Complete: $(APP_BUNDLE) is ready."
-	@echo "ℹ️  Note: You may need to grant Accessibility permissions in System Settings."
 
 ## clean: Remove build artifacts and the .app bundle
 clean:
