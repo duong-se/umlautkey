@@ -13,10 +13,9 @@ use std::collections::HashMap;
 use objc2::rc::Retained;
 use objc2::{MainThreadOnly, define_class, sel};
 use objc2_app_kit::{
-    NSApplication, NSMenu, NSMenuItem, NSSound, NSStatusBar, NSStatusItem,
-    NSVariableStatusItemLength,
+    NSAlert, NSApplication, NSApplicationActivationPolicy, NSMenu, NSMenuItem, NSStatusBar, NSStatusItem, NSVariableStatusItemLength, NSWorkspace
 };
-use objc2_foundation::{MainThreadMarker, NSObject, ns_string};
+use objc2_foundation::{MainThreadMarker, NSObject, NSURL, ns_string};
 use std::io::{self, Write};
 
 pub static IS_ENABLED: AtomicBool = AtomicBool::new(true);
@@ -72,11 +71,6 @@ define_class!(
         #[unsafe(method(toggleEngine:))]
         fn toggle_engine_objc(&self, _sender: Option<&NSMenuItem>) {
             toggle_engine_rust();
-            if _sender.is_none() {
-                if let Some(sound) = NSSound::soundNamed(ns_string!("Tink")) {
-                    sound.play();
-                }
-            }
             let is_enabled = IS_ENABLED.load(Ordering::SeqCst);
             let new_title = if is_enabled { ns_string!("Ä") } else { ns_string!("E") };
             if let Some(raw_tray_icon_item) = GLOBAL_TRAY_ICON_TITLE.get() {
@@ -139,9 +133,51 @@ fn create_menu(mtm: MainThreadMarker, handler: &MenuHandler) -> Retained<NSMenu>
     menu
 }
 
+fn check_accessibility_permission(mtm: MainThreadMarker) -> bool {
+    unsafe {
+        // Cách nhanh nhất để check quyền mà không cần thư viện ngoài phức tạp:
+        // Thử tạo một EventTap ảo hoặc dùng command line check.
+        // Tuy nhiên, cách chuẩn nhất là dùng AXIsProcessTrusted()
+        
+        #[link(name = "ApplicationServices", kind = "framework")]
+        unsafe extern "C" {
+            fn AXIsProcessTrusted() -> bool;
+        }
+
+        if !AXIsProcessTrusted() {
+            let alert = NSAlert::new(mtm);
+            alert.setMessageText(ns_string!("Accessibility Permission Missing"));
+            alert.setInformativeText(ns_string!(
+                "UmlautKey requires Accessibility permissions to detect keyboard shortcuts. \n\nPlease grant permission in System Settings > Privacy & Security > Accessibility, then restart the application."
+            ));
+            alert.addButtonWithTitle(ns_string!("Open System Settings"));
+            alert.addButtonWithTitle(ns_string!("Quit"));
+
+            let response = alert.runModal();
+            
+            // Nếu bấm nút đầu tiên (Mở Settings)
+            if response == 1000 {
+                let url = NSURL::URLWithString(ns_string!(
+                    "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+                ));
+                if let Some(url) = url {
+                    NSWorkspace::sharedWorkspace().openURL(&url);
+                }
+            }
+            return false;
+        }
+    }
+    true
+}
+
 fn main() {
     let mtm = MainThreadMarker::new().expect("Need to run in main thread");
     let app = NSApplication::sharedApplication(mtm);
+    if !check_accessibility_permission(mtm) {
+        return;
+    }
+    app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
+    app.activate();
     let status_bar = NSStatusBar::systemStatusBar();
     let status_item_leaked = Box::leak(Box::new(
         status_bar.statusItemWithLength(NSVariableStatusItemLength),
