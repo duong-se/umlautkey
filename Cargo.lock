@@ -614,6 +614,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "dl_api"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e8752073dc1bae5debb147497c1f0e92abe69b7680c97411e99bf77390967a3"
+dependencies = [
+ "winapi",
+]
+
+[[package]]
 name = "dtoa"
 version = "0.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -982,6 +991,17 @@ name = "httparse"
 version = "1.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6dbf3de79e51f3d586ab4cb9d5c3e2c14aa28ed23d180cf89b4df0454a69cc87"
+
+[[package]]
+name = "human"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a33606e2411fedf1c59f5f155c2657ef024b5d07e6734d455c90c66ca905c0d0"
+dependencies = [
+ "stick",
+ "wasm-bindgen",
+ "web-sys",
+]
 
 [[package]]
 name = "hyper"
@@ -2693,6 +2713,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 
 [[package]]
+name = "smelling_salts"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f2692f084bca749bf1496cb442450bb4fd9ce511cceab14133416700ea42f34"
+
+[[package]]
 name = "socket2"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2707,6 +2733,17 @@ name = "stable_deref_trait"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
+
+[[package]]
+name = "stick"
+version = "0.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "15d96c3182e4d16584264e6dfee9493f0418cc32c888b3f9cedef67893cc6e50"
+dependencies = [
+ "serde 1.0.228",
+ "smelling_salts",
+ "toml 0.5.11",
+]
 
 [[package]]
 name = "strsim"
@@ -2898,6 +2935,15 @@ dependencies = [
 
 [[package]]
 name = "toml"
+version = "0.5.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f4f7f0dd8d50a853a531c426359045b1998f04219d88799810762cd4ad314234"
+dependencies = [
+ "serde 1.0.228",
+]
+
+[[package]]
+name = "toml"
 version = "0.8.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc1beb996b9d83529a9e75c17a1686767d148d70663143c7854d8b4a09ced362"
@@ -3064,6 +3110,7 @@ dependencies = [
  "objc2-core-foundation",
  "objc2-core-graphics",
  "objc2-foundation",
+ "window",
 ]
 
 [[package]]
@@ -3312,6 +3359,16 @@ name = "winapi-x86_64-pc-windows-gnu"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
+
+[[package]]
+name = "window"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "97024e971fea1cdda0578ff216028fb0e091e137f6509679963fd0f5e2235049"
+dependencies = [
+ "dl_api",
+ "human",
+]
 
 [[package]]
 name = "windows-core"

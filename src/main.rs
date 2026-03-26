@@ -7,6 +7,7 @@ mod platform;
 use de::methods::IncrementalBuffer;
 use de::rules::{Action, get_default_rules};
 use platform::macos::methods::{MacOS, RealEventPoster};
+use platform::windowos::methods::{WindowsOS};
 
 use std::collections::HashMap;
 
@@ -204,9 +205,10 @@ fn main() {
 
         let poster = RealEventPoster {};
         let mut macos = MacOS::new(buffer, raw_tracker, spoof_until, poster);
-
+        let mut windowsos: WindowsOS<'_, RealEventPoster> = WindowsOS::new(buffer, raw_tracker, spoof_until, poster);
         println!("⌨️  UmlautKey Engine started (Version 0.3.2 Stack)...");
         macos.run_event_tap();
+        windowsos.run_loop();
     });
     app.run();
 }
