@@ -19,8 +19,8 @@
 
 ### 1. Download & Install
 
-1. Download the `UmlautKey-Installer.dmg` from the Releases page.
-2. Open the DMG and drag **UmlautKey.app** to your **Applications** folder.
+1. Download the `UmlautKey.zip` from the Releases page.
+2. Extract the zip and drag **UmlautKey.app** to your **Applications** folder.
 3. Launch **UmlautKey**.
 
 ### 2. Required Permissions (Accessibility) ⚠️
